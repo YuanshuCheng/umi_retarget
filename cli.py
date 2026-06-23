@@ -61,12 +61,12 @@ def cmd_batch(args):
     return 0
 
 
-def cmd_compensate(args):
+def cmd_align(args):
     from .config import load_config
-    from .compensate import compensate_batch
+    from .align import align_batch
 
-    config = load_config(args.config)
-    compensate_batch(args.input, config)
+    config = load_config(args.config) or {}
+    align_batch(args.input, config)
     return 0
 
 
@@ -166,8 +166,8 @@ def main():
     p.add_argument("--parallel", type=int, default=0)
     p.add_argument("--force", action="store_true", help="强制覆盖已处理的数据")
 
-    # compensate
-    p = subparsers.add_parser("compensate", help="Dynamics 补偿 (可选)")
+    # align (Action-Pose Alignment)
+    p = subparsers.add_parser("align", help="Action-Pose Alignment (可选, 真机 replay 精度优化)")
     p.add_argument("--config", default="config.yaml")
     p.add_argument("--input", required=True, help="retargeted 目录")
 
@@ -202,7 +202,7 @@ def main():
         "init": cmd_init,
         "tune": cmd_tune,
         "batch": cmd_batch,
-        "compensate": cmd_compensate,
+        "align": cmd_align,
         "evaluate": cmd_evaluate,
         "visualize": cmd_visualize,
         "merge": cmd_merge,

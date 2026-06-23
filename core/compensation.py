@@ -235,3 +235,6 @@ def compensate_trajectory(q_cmd, calib, robot_info, freq=DEFAULT_FREQ,
 
     # Step 2: pyroki 全局优化
     q_warped = optimize_compensation_pyroki(
+        q_cmd, residual_target, robot_info, cfg_weights, freq)
+
+    return q_warped

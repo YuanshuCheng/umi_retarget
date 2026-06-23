@@ -1,4 +1,8 @@
-"""Dynamics 补偿 wrapper。"""
+"""Action-Pose Alignment (APA): 让真机在正确位置执行正确动作。
+
+通过 GBT 残差预测 + pyroki 全局平滑对轨迹做 pre-warp,
+使真机 replay 时手臂位置和夹爪动作在空间上对齐。
+"""
 import os
 import pickle
 
@@ -9,22 +13,25 @@ from .core.robot_loader import load_pyroki_robot
 from .utils import find_datasets
 
 
-def compensate_batch(input_dir, config):
-    model_path = config.get("compensation", {}).get("model_path")
+def align_batch(input_dir, config):
+    """对所有 episode 做 action-pose alignment。"""
+    model_path = config.get("alignment", {}).get("model_path")
     if not model_path:
-        print("未配置补偿模型, 跳过。")
-        print("如需补偿, 在 config.yaml 中设置 compensation.model_path")
+        model_path = config.get("compensation", {}).get("model_path")
+    if not model_path:
+        print("未配置 alignment 模型, 跳过。")
+        print("如需对齐, 在 config.yaml 中设置 alignment.model_path")
         return
 
     if not os.path.exists(model_path):
-        print("补偿模型不存在: {}".format(model_path))
+        print("模型不存在: {}".format(model_path))
         return
 
     import h5py
 
     with open(model_path, "rb") as f:
         calib = pickle.load(f)
-    print("模型已加载: {} ({}条log, {}帧)".format(
+    print("APA 模型已加载: {} ({}条log, {}帧)".format(
         model_path, calib.get("n_logs", "?"), calib.get("n_frames", "?")))
 
     urdf_path = config.get("urdf_path", "")
@@ -32,7 +39,7 @@ def compensate_batch(input_dir, config):
     freq = calib.get("freq", 30.0)
 
     files = find_datasets(input_dir)
-    print("待补偿: {} 个文件".format(len(files)))
+    print("待对齐: {} 个文件".format(len(files)))
 
     for fp in files:
         print("  处理: {}".format(fp))
@@ -58,10 +65,10 @@ def compensate_batch(input_dir, config):
             if actions_new is not None and "data/demo_0/actions" in f:
                 del f["data/demo_0/actions"]
                 f.create_dataset("data/demo_0/actions", data=actions_new)
-            f.attrs["dynamics_compensation"] = model_path
+            f.attrs["action_pose_alignment"] = model_path
 
         diff = np.abs(q_warped - q_cmd)
-        print("    补偿量: mean={:.2f}° max={:.2f}°".format(
+        print("    调整量: mean={:.2f}° max={:.2f}°".format(
             np.degrees(diff.mean()), np.degrees(diff.max())))
 
-    print("\n完成: {} 个文件".format(len(files)))
+    print("\n完成: {} 个文件已对齐".format(len(files)))

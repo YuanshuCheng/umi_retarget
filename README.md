@@ -7,7 +7,8 @@ UMI 采集数据 → 给定 URDF 下的全身关节轨迹数据集。
 - **Kinematic Retarget**: FastUMI SLAM 位姿 → pyroki 全局轨迹优化 → 全身关节角
 - **质量评估**: 自动检测异常 + 多维度评分 → FAIL/PASS/GOOD 分级
 - **数据集合并**: 质量筛选 + 统一 normalization + train/val 划分
-- **Dynamics 补偿** (可选): GBT 残差预测 + pyroki 全局平滑
+- **Action-Pose Alignment** (可选): GBT 残差预测 + pyroki 全局平滑, 让真机在正确位置执行正确动作
+- **本体设计评估**：来衡量本体设计能否完美实现whole-body-tast，参阅embodiment_evaluation_guide.txt
 
 ## 安装
 
@@ -55,14 +56,16 @@ python3 -m fastumi_retarget batch \
 
 支持断点续传 (中断后重跑自动跳过已处理的 episode)，`--force` 强制覆盖。
 
-### Step 4: Dynamics 补偿 (可选)
+### Step 4: Action-Pose Alignment (可选)
 
 ```bash
-# 需要先有已训练的补偿模型 (在 config.yaml 中配置 compensation.model_path)
-python3 -m fastumi_retarget compensate \
+# 需要先有已训练的 APA 模型 (在 config.yaml 中配置 alignment.model_path)
+python3 -m fastumi_retarget align \
   --config config.yaml \
   --input ./retargeted/
 ```
+
+让真机 replay 时手臂位置和夹爪动作在空间上对齐。验证指标：轨迹重合度 + 夹爪-位姿匹配度。
 
 ### Step 5: 质量评估
 
@@ -135,8 +138,8 @@ weights:
   smooth_weight: 5
   collision_weight: 100
   # ... (完整参数见 config.py 的 PRESETS)
-compensation:
-  model_path: null   # 设为 ./calib/robot.pkl 启用
+alignment:
+  model_path: null   # 设为 ./calib/robot.pkl 启用 Action-Pose Alignment
 evaluation:
   good_threshold: 0.7
 ```

@@ -73,7 +73,7 @@ def make_default_config(urdf_path, subsets_config, preset="balanced"):
         "preset": preset,
         "subsets": subsets_config,
         "weights": dict(PRESETS.get(preset, PRESETS["balanced"])),
-        "compensation": {"model_path": None},
+        "alignment": {"model_path": None},
         "evaluation": {
             "fail_joint_limit_ratio": 0.1,
             "fail_collision_ratio": 0.05,
