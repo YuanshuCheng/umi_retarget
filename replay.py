@@ -396,14 +396,6 @@ def replay_sim(ep_data, speed=1.0, auto=False, mesh_dir=None):
         print("MuJoCo viewer 启动失败: {}".format(e))
         return "abort"
 
-    # 设置初始相机: 看向机器人中心
-    with viewer_ctx as v:
-        v.cam.lookat[:] = [0.0, 0.0, 1.0]  # 看向机器人躯干高度
-        v.cam.distance = 3.0               # 距离
-        v.cam.azimuth = 135                # 右前方视角
-        v.cam.elevation = -20              # 微俯视
-        v.sync()
-
     # 显示质量信息
     grade = ep_data.get("grade", "")
     score = ep_data.get("score", 0)
@@ -422,6 +414,13 @@ def replay_sim(ep_data, speed=1.0, auto=False, mesh_dir=None):
         print("  按空格或 Enter 开始 (speed={:.1f}x)...".format(speed))
 
     with viewer_ctx as viewer:
+        # 初始相机: 看向机器人中心
+        viewer.cam.lookat[:] = [0.0, 0.0, 1.0]
+        viewer.cam.distance = 3.0
+        viewer.cam.azimuth = 135
+        viewer.cam.elevation = -20
+        viewer.sync()
+
         if not auto:
             while viewer.is_running():
                 if space_pressed[0]:
