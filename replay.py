@@ -46,26 +46,23 @@ import re
 import xml.etree.ElementTree as ET
 
 _R1PRO_MESH_DIR = None  # 由 --mesh_dir 指定, 或自动查找
+# MJCF body name → mesh 文件名 (注意 MJCF 里的 body name 不带 _link 后缀)
 _BODY_MESH_MAP = {
     "base_link": "base_link.obj",
     "torso_link1": "torso_link1.obj", "torso_link2": "torso_link2.obj",
     "torso_link3": "torso_link3.obj", "torso_link4": "torso_link4.obj",
-    "left_arm_base_link": "left_arm_base_link.obj",
+    "left_arm_base": "left_arm_base_link.obj",
     "left_arm_link1": "left_arm_link1.obj", "left_arm_link2": "left_arm_link2.obj",
     "left_arm_link3": "left_arm_link3.obj", "left_arm_link4": "left_arm_link4.obj",
     "left_arm_link5": "left_arm_link5.obj", "left_arm_link6": "left_arm_link6.STL",
     "left_arm_link7": "left_arm_link7.obj",
-    "left_gripper_link": "left_gripper_link.obj",
-    "left_gripper_finger_link1": "left_gripper_finger_link1.obj",
-    "left_gripper_finger_link2": "left_gripper_finger_link2.obj",
-    "right_arm_base_link": "right_arm_base_link.obj",
+    "left_gripper": "left_gripper_link.obj",
+    "right_arm_base": "right_arm_base_link.obj",
     "right_arm_link1": "right_arm_link1.obj", "right_arm_link2": "right_arm_link2.obj",
     "right_arm_link3": "right_arm_link3.obj", "right_arm_link4": "right_arm_link4.obj",
     "right_arm_link5": "right_arm_link5.obj", "right_arm_link6": "right_arm_link6.obj",
     "right_arm_link7": "right_arm_link7.obj",
-    "right_gripper_link": "right_gripper_link.obj",
-    "right_gripper_finger_link1": "right_gripper_finger_link1.obj",
-    "right_gripper_finger_link2": "right_gripper_finger_link2.obj",
+    "right_gripper": "right_gripper_link.obj",
 }
 
 # R1Pro 简化 MJCF (fallback, 无需 mesh 文件)
