@@ -383,6 +383,11 @@ def replay_sim(ep_data, speed=1.0, auto=False, mesh_dir=None):
         if keycode == 32:
             space_pressed[0] = True
 
+    # 先设初始姿态再启动 viewer, 这样相机对准机器人
+    bf0 = base_pos[0] if base_pos is not None else None
+    data.qpos[:] = frame_to_qpos(joint_pos[0], fmt, model.nq, base_frame=bf0)
+    mujoco.mj_forward(model, data)
+
     try:
         viewer_ctx = mujoco.viewer.launch_passive(
             model=model, data=data, show_left_ui=False, show_right_ui=False,
@@ -390,6 +395,14 @@ def replay_sim(ep_data, speed=1.0, auto=False, mesh_dir=None):
     except Exception as e:
         print("MuJoCo viewer 启动失败: {}".format(e))
         return "abort"
+
+    # 设置初始相机: 看向机器人中心
+    with viewer_ctx as v:
+        v.cam.lookat[:] = [0.0, 0.0, 1.0]  # 看向机器人躯干高度
+        v.cam.distance = 3.0               # 距离
+        v.cam.azimuth = 135                # 右前方视角
+        v.cam.elevation = -20              # 微俯视
+        v.sync()
 
     # 显示质量信息
     grade = ep_data.get("grade", "")
