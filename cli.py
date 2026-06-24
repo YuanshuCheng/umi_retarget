@@ -149,7 +149,13 @@ def cmd_auto(args):
         subsets_config = {}
         for name in subsets:
             mode = "local" if "local" in name.lower() else "mobile"
-            hand = "left"
+            nl = name.lower()
+            if "left_hand" in nl:
+                hand = "left"
+            elif "right_hand" in nl:
+                hand = "right"
+            else:
+                hand = "both"
             subsets_config[name] = {"mode": mode, "hand": hand}
             print("  {}: mode={}, hand={}".format(name, mode, hand))
 
