@@ -91,9 +91,11 @@ def _run_sequential(episodes, output_dir, robot_info, total):
 
 _worker_robot_info = None
 
-def _worker_init(mem_fraction, urdf_path):
+def _worker_init(mem_fraction, urdf_path_unused):
     import os as _os
     _os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = str(mem_fraction)
+    _os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+    _os.environ["JAX_PLATFORMS"] = "cuda"
     global _worker_robot_info
     _worker_robot_info = None
 
@@ -107,7 +109,8 @@ def _process_one(args):
         return {"msg": "跳过 {}/{}".format(subset_name, ep_name)}
 
     if _worker_robot_info is None:
-        _worker_robot_info = load_pyroki_robot(urdf_path)
+        from .core.robot_loader import load_pyroki_robot as _load
+        _worker_robot_info = _load(urdf_path)
 
     cfg = SimpleNamespace(**cfg_dict)
     t0 = time.monotonic()
@@ -157,8 +160,11 @@ def retarget_batch(input_dir, output_dir, config, parallel=0, force=False):
     weights = config.get("weights", {})
     subsets = config.get("subsets", {})
 
-    print("加载 URDF...")
-    robot_info = load_pyroki_robot(urdf_path)
+    # 并行模式下不在主进程加载 URDF (避免 CUDA 占用冲突)
+    robot_info = None
+    if parallel <= 1:
+        print("加载 URDF...")
+        robot_info = load_pyroki_robot(urdf_path)
 
     episodes = []
     for subset_name, params in subsets.items():
