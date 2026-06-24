@@ -52,7 +52,9 @@ def gpu_solve_and_save(ep, robot_info, cfg, output_dir):
     details["source"] = ep.get("source", "")
     details["status"] = "PASS" if details.get("final_score", 0) >= 0.7 else "WARN"
     norm = compute_normalization([ep])
-    cfg_save = SimpleNamespace(**vars(cfg), output_dir=output_dir)
+    cfg_dict = vars(cfg).copy()
+    cfg_dict["output_dir"] = output_dir
+    cfg_save = SimpleNamespace(**cfg_dict)
     save_dataset([ep], norm, [details], cfg_save)
     tracking = ep.get("tracking", {})
     return {"details": details, "tracking": tracking}

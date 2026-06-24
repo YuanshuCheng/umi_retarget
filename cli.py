@@ -83,7 +83,37 @@ def cmd_evaluate(args):
 
 def cmd_visualize(args):
     print("visualize: viser 可视化暂未实现")
-    print("替代: python3 teleop_replay.py --episode <path> --sim")
+    print("替代: python3 -m fastumi_retarget.replay --episode <path> --sim")
+    return 0
+
+
+def cmd_replay(args):
+    from .replay import load_episode, replay_sim, replay_real
+    import glob
+
+    episodes = []
+    if args.batch_dir:
+        episodes = sorted(glob.glob(
+            os.path.join(args.batch_dir, "**", "dataset.hdf5"), recursive=True))
+        args.auto = True
+    elif args.episode:
+        episodes = [args.episode]
+    else:
+        print("需要 --episode 或 --batch_dir")
+        return 1
+
+    for ep_path in episodes:
+        print("\n加载: {}".format(ep_path))
+        ep_data = load_episode(ep_path, demo_index=args.demo)
+        if ep_data is None:
+            continue
+        print("  {} 帧, {:.1f}s".format(
+            len(ep_data["joint_pos"]), len(ep_data["joint_pos"]) / ep_data["freq"]))
+
+        if args.real:
+            replay_real(ep_data, speed=args.speed)
+        else:
+            replay_sim(ep_data, speed=args.speed, auto=args.auto)
     return 0
 
 
@@ -182,6 +212,16 @@ def main():
     p.add_argument("--show", choices=["typical", "fails"], default="typical")
     p.add_argument("--episode", default=None)
 
+    # replay
+    p = subparsers.add_parser("replay", help="sim 或真机回放 retarget 数据")
+    p.add_argument("--episode", type=str, default=None, help="单条 dataset.hdf5")
+    p.add_argument("--batch_dir", type=str, default=None, help="批量目录")
+    p.add_argument("--demo", type=str, default="0")
+    p.add_argument("--speed", type=float, default=1.0)
+    p.add_argument("--sim", action="store_true", help="MuJoCo sim (默认)")
+    p.add_argument("--real", action="store_true", help="真机 replay (需 ROS2)")
+    p.add_argument("--auto", action="store_true", help="自动开始")
+
     # merge
     p = subparsers.add_parser("merge", help="筛选 + 统一 norm + train/val 划分")
     p.add_argument("--input", required=True, help="retargeted 目录")
@@ -205,6 +245,7 @@ def main():
         "align": cmd_align,
         "evaluate": cmd_evaluate,
         "visualize": cmd_visualize,
+        "replay": cmd_replay,
         "merge": cmd_merge,
         "auto": cmd_auto,
     }
