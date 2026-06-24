@@ -129,7 +129,7 @@ def _run_parallel(episodes, output_dir, urdf_path, weights, n_workers, total):
     import multiprocessing as mp
 
     print("模式: {} 路并行".format(n_workers))
-    mem_fraction = 0.9 / n_workers
+    mem_fraction = min(0.45, 0.95 / n_workers)
     print("每 worker GPU 显存: {:.1f}%".format(mem_fraction * 100))
 
     mp.set_start_method("spawn", force=True)
