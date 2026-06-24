@@ -57,12 +57,16 @@ _BODY_MESH_MAP = {
     "left_arm_link5": "left_arm_link5.obj", "left_arm_link6": "left_arm_link6.STL",
     "left_arm_link7": "left_arm_link7.obj",
     "left_gripper": "left_gripper_link.obj",
+    "left_gripper_finger1": "left_gripper_finger_link1.obj",
+    "left_gripper_finger2": "left_gripper_finger_link2.obj",
     "right_arm_base": "right_arm_base_link.obj",
     "right_arm_link1": "right_arm_link1.obj", "right_arm_link2": "right_arm_link2.obj",
     "right_arm_link3": "right_arm_link3.obj", "right_arm_link4": "right_arm_link4.obj",
     "right_arm_link5": "right_arm_link5.obj", "right_arm_link6": "right_arm_link6.obj",
     "right_arm_link7": "right_arm_link7.obj",
     "right_gripper": "right_gripper_link.obj",
+    "right_gripper_finger1": "right_gripper_finger_link1.obj",
+    "right_gripper_finger2": "right_gripper_finger_link2.obj",
 }
 
 # R1Pro 简化 MJCF (fallback, 无需 mesh 文件)
@@ -110,11 +114,11 @@ R1PRO_MJCF = """
                               <geom type="capsule" fromto="0 0 0 -0.025 0 -0.07" size="0.012" rgba="0.82 0.82 1 1"/>
                               <body name="left_gripper" pos="-0.0295 0 -0.16065">
                                 <geom type="capsule" fromto="-0.01 0 0 0.01 0 0" size="0.012" rgba="0.85 0.75 0.75 1"/>
-                                <body pos="0 0.013 -0.037">
+                                <body name="left_gripper_finger1" pos="0 0.013 -0.037">
                                   <joint name="left_grip1" type="slide" axis="0 1 0" range="0 0.05"/>
                                   <geom type="capsule" fromto="0 0 -0.01 0 0 0.01" size="0.005" rgba="0.82 0.82 1 1"/>
                                 </body>
-                                <body pos="0 -0.013 -0.037">
+                                <body name="left_gripper_finger2" pos="0 -0.013 -0.037">
                                   <joint name="left_grip2" type="slide" axis="0 1 0" range="-0.05 0"/>
                                   <geom type="capsule" fromto="0 0 -0.01 0 0 0.01" size="0.005" rgba="0.82 0.82 1 1"/>
                                 </body>
@@ -151,11 +155,11 @@ R1PRO_MJCF = """
                               <geom type="capsule" fromto="0 0 0 -0.025 0 -0.07" size="0.012" rgba="0.82 0.82 1 1"/>
                               <body name="right_gripper" pos="-0.0295 0 -0.16065">
                                 <geom type="capsule" fromto="-0.01 0 0 0.01 0 0" size="0.012" rgba="0.85 0.75 0.75 1"/>
-                                <body pos="0 0.013 -0.037">
+                                <body name="right_gripper_finger1" pos="0 0.013 -0.037">
                                   <joint name="right_grip1" type="slide" axis="0 1 0" range="0 0.05"/>
                                   <geom type="capsule" fromto="0 0 -0.01 0 0 0.01" size="0.005" rgba="0.82 0.82 1 1"/>
                                 </body>
-                                <body pos="0 -0.013 -0.037">
+                                <body name="right_gripper_finger2" pos="0 -0.013 -0.037">
                                   <joint name="right_grip2" type="slide" axis="0 1 0" range="-0.05 0"/>
                                   <geom type="capsule" fromto="0 0 -0.01 0 0 0.01" size="0.005" rgba="0.82 0.82 1 1"/>
                                 </body>
