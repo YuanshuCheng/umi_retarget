@@ -469,7 +469,11 @@ def replay_sim(ep_data, speed=1.0, auto=False, mesh_dir=None):
                     time.sleep(0.1)
         except KeyboardInterrupt:
             print("\n  Ctrl+C, 终止。")
-            return "abort"
+            try:
+                viewer.close()
+            except Exception:
+                pass
+            os._exit(0)
     return "next"
 
 
