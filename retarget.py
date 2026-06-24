@@ -68,6 +68,90 @@ def retarget_single(input_path, output_dir, cfg, robot_info):
     return gpu_solve_and_save(ep, robot_info, cfg, output_dir)
 
 
+def _run_sequential(episodes, output_dir, robot_info, total):
+    all_results = []
+    done = 0
+    for path, subset_name, ep_name, cfg in episodes:
+        done += 1
+        out = os.path.join(output_dir, subset_name, ep_name)
+        print("  [{}/{}] {}/{} ...".format(done, total, subset_name, ep_name))
+        result = retarget_single(path, out, cfg, robot_info)
+        if result:
+            d = result.get("details", {})
+            tracking = result.get("tracking", {})
+            print("    → score={:.3f} [{}]".format(
+                d.get("final_score", 0), d.get("status", "")))
+            all_results.append({
+                "subset": subset_name, "episode": ep_name, **tracking,
+            })
+        else:
+            print("    → 失败")
+    return all_results
+
+
+_worker_robot_info = None
+
+def _worker_init(mem_fraction, urdf_path):
+    import os as _os
+    _os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = str(mem_fraction)
+    global _worker_robot_info
+    _worker_robot_info = None
+
+
+def _process_one(args):
+    global _worker_robot_info
+    path, subset_name, ep_name, cfg_dict, output_dir, urdf_path = args
+
+    out = os.path.join(output_dir, subset_name, ep_name)
+    if os.path.exists(os.path.join(out, "dataset.hdf5")):
+        return {"msg": "跳过 {}/{}".format(subset_name, ep_name)}
+
+    if _worker_robot_info is None:
+        _worker_robot_info = load_pyroki_robot(urdf_path)
+
+    cfg = SimpleNamespace(**cfg_dict)
+    t0 = time.monotonic()
+    result = retarget_single(path, out, cfg, _worker_robot_info)
+    dt = time.monotonic() - t0
+
+    if result:
+        d = result.get("details", {})
+        tracking = result.get("tracking", {})
+        return {
+            "msg": "完成 {}/{} — {:.1f}s score={:.3f}".format(
+                subset_name, ep_name, dt, d.get("final_score", 0)),
+            "subset": subset_name, "episode": ep_name, **tracking,
+        }
+    return {"msg": "失败 {}/{}".format(subset_name, ep_name)}
+
+
+def _run_parallel(episodes, output_dir, urdf_path, weights, n_workers, total):
+    import multiprocessing as mp
+
+    print("模式: {} 路并行".format(n_workers))
+    mem_fraction = 0.9 / n_workers
+    print("每 worker GPU 显存: {:.1f}%".format(mem_fraction * 100))
+
+    mp.set_start_method("spawn", force=True)
+
+    tasks = []
+    for path, subset_name, ep_name, cfg in episodes:
+        cfg_dict = vars(cfg)
+        tasks.append((path, subset_name, ep_name, cfg_dict, output_dir, urdf_path))
+
+    done = 0
+    all_results = []
+    with mp.Pool(n_workers, initializer=_worker_init,
+                 initargs=(mem_fraction, urdf_path)) as pool:
+        for result in pool.imap_unordered(_process_one, tasks):
+            done += 1
+            print("  [{}/{}] {}".format(done, total, result.get("msg", result)))
+            if "subset" in result:
+                all_results.append(result)
+
+    return all_results
+
+
 def retarget_batch(input_dir, output_dir, config, parallel=0, force=False):
     urdf_path = config["urdf_path"]
     weights = config.get("weights", {})
@@ -98,27 +182,14 @@ def retarget_batch(input_dir, output_dir, config, parallel=0, force=False):
         print("无需处理。")
         return []
 
-    all_results = []
-    done = 0
     total = len(episodes)
     t_start = time.monotonic()
 
-    for path, subset_name, ep_name, cfg in episodes:
-        done += 1
-        out = os.path.join(output_dir, subset_name, ep_name)
-        print("  [{}/{}] {}/{} ...".format(done, total, subset_name, ep_name))
-
-        result = retarget_single(path, out, cfg, robot_info)
-        if result:
-            d = result.get("details", {})
-            tracking = result.get("tracking", {})
-            print("    → score={:.3f} [{}]".format(
-                d.get("final_score", 0), d.get("status", "")))
-            all_results.append({
-                "subset": subset_name, "episode": ep_name, **tracking,
-            })
-        else:
-            print("    → 失败")
+    if parallel > 1:
+        all_results = _run_parallel(episodes, output_dir, urdf_path, weights,
+                                    parallel, total)
+    else:
+        all_results = _run_sequential(episodes, output_dir, robot_info, total)
 
     elapsed = time.monotonic() - t_start
     print("\n完成: {}/{}, 耗时 {:.1f}s ({:.1f}min)".format(

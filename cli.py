@@ -167,7 +167,8 @@ def cmd_auto(args):
     retarget_dir = os.path.join(args.output, "retargeted")
 
     print("\n=== Step 3: batch ===")
-    retarget_batch(args.input, retarget_dir, config)
+    retarget_batch(args.input, retarget_dir, config,
+                   parallel=getattr(args, 'parallel', 0))
 
     print("\n=== Step 5: evaluate ===")
     evaluate_batch(retarget_dir, config)
@@ -245,6 +246,7 @@ def main():
     p.add_argument("--input", required=True, help="原始数据集目录")
     p.add_argument("--output", required=True, help="输出目录")
     p.add_argument("--config", default=None, help="已有 config.yaml (跳过 init)")
+    p.add_argument("--parallel", type=int, default=0, help="并行 worker 数 (0=顺序)")
 
     args = parser.parse_args()
 
