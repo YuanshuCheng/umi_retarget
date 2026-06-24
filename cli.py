@@ -113,7 +113,8 @@ def cmd_replay(args):
         if args.real:
             replay_real(ep_data, speed=args.speed)
         else:
-            result = replay_sim(ep_data, speed=args.speed, auto=args.auto)
+            result = replay_sim(ep_data, speed=args.speed, auto=args.auto,
+                                mesh_dir=getattr(args, 'mesh_dir', None))
             if result == "abort":
                 break
     return 0
@@ -223,6 +224,7 @@ def main():
     p.add_argument("--sim", action="store_true", help="MuJoCo sim (默认)")
     p.add_argument("--real", action="store_true", help="真机 replay (需 ROS2)")
     p.add_argument("--auto", action="store_true", help="自动开始")
+    p.add_argument("--mesh_dir", type=str, default=None, help="R1Pro mesh 目录")
 
     # merge
     p = subparsers.add_parser("merge", help="筛选 + 统一 norm + train/val 划分")

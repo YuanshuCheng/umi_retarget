@@ -45,7 +45,7 @@ except ImportError:
 import re
 import xml.etree.ElementTree as ET
 
-_R1PRO_MESH_DIR = "/home/physical/yuanshu/galaxea_isaac_tutorial/object/r1pro/meshes"
+_R1PRO_MESH_DIR = None  # 由 --mesh_dir 指定, 或自动查找
 _BODY_MESH_MAP = {
     "base_link": "base_link.obj",
     "torso_link1": "torso_link1.obj", "torso_link2": "torso_link2.obj",
@@ -283,8 +283,27 @@ def frame_to_qpos(frame, fmt, nq, base_frame=None):
     return qpos
 
 
-def _build_visual_model():
+def _find_mesh_dir():
+    """自动查找 R1Pro mesh 目录。"""
+    candidates = [
+        os.path.expanduser("~/yuanshu/galaxea_isaac_tutorial/object/r1pro/meshes"),
+        "/home/physical/yuanshu/galaxea_isaac_tutorial/object/r1pro/meshes",
+        "/home/nvidia/yuanshu/galaxea_isaac_tutorial/object/r1pro/meshes",
+        "/home/cys/yuanshu/galaxea_isaac_tutorial/object/r1pro/meshes",
+    ]
+    for c in candidates:
+        if os.path.isdir(c):
+            return c
+    return None
+
+
+def _build_visual_model(mesh_dir=None):
     """构建带 mesh、地面、光照的 R1Pro MuJoCo 模型。失败时回退到简化模型。"""
+    if mesh_dir is None:
+        mesh_dir = _R1PRO_MESH_DIR or _find_mesh_dir()
+    if mesh_dir is None:
+        print("  未找到 mesh 目录, 使用简化模型 (可用 --mesh_dir 指定)")
+        return mujoco.MjModel.from_xml_string(R1PRO_MJCF)
     try:
         root = ET.fromstring(R1PRO_MJCF)
 
@@ -321,7 +340,7 @@ def _build_visual_model():
 
         assets = {}
         for mesh_file in set(_BODY_MESH_MAP.values()):
-            fpath = os.path.join(_R1PRO_MESH_DIR, mesh_file)
+            fpath = os.path.join(mesh_dir, mesh_file)
             try:
                 with open(fpath, "rb") as f:
                     assets[mesh_file] = f.read()
@@ -336,7 +355,7 @@ def _build_visual_model():
         return mujoco.MjModel.from_xml_string(R1PRO_MJCF)
 
 
-def replay_sim(ep_data, speed=1.0, auto=False):
+def replay_sim(ep_data, speed=1.0, auto=False, mesh_dir=None):
     """MuJoCo sim 回放。返回 'next'=正常结束, 'abort'=Ctrl+C。"""
     if not _MUJOCO_AVAILABLE:
         print("mujoco 未安装: pip install mujoco", file=sys.stderr)
@@ -355,7 +374,7 @@ def replay_sim(ep_data, speed=1.0, auto=False):
     dt_frames = np.diff(timestamps)
     dt_frames = np.clip(dt_frames, 1e-4, 1.0)
 
-    model = _build_visual_model()
+    model = _build_visual_model(mesh_dir=mesh_dir)
     data = mujoco.MjData(model)
 
     space_pressed = [False]
@@ -543,6 +562,8 @@ def main():
     parser.add_argument("--sim", action="store_true", help="MuJoCo sim 回放")
     parser.add_argument("--real", action="store_true", help="真机 replay (ROS2)")
     parser.add_argument("--auto", action="store_true", help="自动开始")
+    parser.add_argument("--mesh_dir", type=str, default=None,
+                        help="R1Pro mesh 目录 (自动查找, 或手动指定)")
     args = parser.parse_args()
 
     if not args.episode and not args.batch_dir:
@@ -577,7 +598,8 @@ def main():
         if args.real:
             replay_real(ep_data, speed=args.speed)
         else:
-            result = replay_sim(ep_data, speed=args.speed, auto=args.auto)
+            result = replay_sim(ep_data, speed=args.speed, auto=args.auto,
+                                mesh_dir=args.mesh_dir)
             if result == "abort":
                 print("已终止。")
                 break
