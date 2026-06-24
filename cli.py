@@ -113,7 +113,9 @@ def cmd_replay(args):
         if args.real:
             replay_real(ep_data, speed=args.speed)
         else:
-            replay_sim(ep_data, speed=args.speed, auto=args.auto)
+            result = replay_sim(ep_data, speed=args.speed, auto=args.auto)
+            if result == "abort":
+                break
     return 0
 
 

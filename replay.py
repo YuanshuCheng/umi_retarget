@@ -42,7 +42,33 @@ except ImportError:
     pass
 
 
-# R1Pro 简化 MJCF (无需 mesh 文件)
+import re
+import xml.etree.ElementTree as ET
+
+_R1PRO_MESH_DIR = "/home/physical/yuanshu/galaxea_isaac_tutorial/object/r1pro/meshes"
+_BODY_MESH_MAP = {
+    "base_link": "base_link.obj",
+    "torso_link1": "torso_link1.obj", "torso_link2": "torso_link2.obj",
+    "torso_link3": "torso_link3.obj", "torso_link4": "torso_link4.obj",
+    "left_arm_base_link": "left_arm_base_link.obj",
+    "left_arm_link1": "left_arm_link1.obj", "left_arm_link2": "left_arm_link2.obj",
+    "left_arm_link3": "left_arm_link3.obj", "left_arm_link4": "left_arm_link4.obj",
+    "left_arm_link5": "left_arm_link5.obj", "left_arm_link6": "left_arm_link6.STL",
+    "left_arm_link7": "left_arm_link7.obj",
+    "left_gripper_link": "left_gripper_link.obj",
+    "left_gripper_finger_link1": "left_gripper_finger_link1.obj",
+    "left_gripper_finger_link2": "left_gripper_finger_link2.obj",
+    "right_arm_base_link": "right_arm_base_link.obj",
+    "right_arm_link1": "right_arm_link1.obj", "right_arm_link2": "right_arm_link2.obj",
+    "right_arm_link3": "right_arm_link3.obj", "right_arm_link4": "right_arm_link4.obj",
+    "right_arm_link5": "right_arm_link5.obj", "right_arm_link6": "right_arm_link6.obj",
+    "right_arm_link7": "right_arm_link7.obj",
+    "right_gripper_link": "right_gripper_link.obj",
+    "right_gripper_finger_link1": "right_gripper_finger_link1.obj",
+    "right_gripper_finger_link2": "right_gripper_finger_link2.obj",
+}
+
+# R1Pro 简化 MJCF (fallback, 无需 mesh 文件)
 R1PRO_MJCF = """
 <mujoco model="r1pro_full">
   <compiler angle="radian"/>
@@ -257,11 +283,68 @@ def frame_to_qpos(frame, fmt, nq, base_frame=None):
     return qpos
 
 
+def _build_visual_model():
+    """构建带 mesh、地面、光照的 R1Pro MuJoCo 模型。失败时回退到简化模型。"""
+    try:
+        root = ET.fromstring(R1PRO_MJCF)
+
+        asset = ET.SubElement(root, "asset")
+        ET.SubElement(asset, "texture", name="grid", type="2d", builtin="checker",
+                      width="512", height="512",
+                      rgb1="0.9 0.9 0.9", rgb2="0.75 0.75 0.75")
+        ET.SubElement(asset, "material", name="grid_mat", texture="grid",
+                      texrepeat="10 10", reflectance="0.1")
+        for body_name, mesh_file in _BODY_MESH_MAP.items():
+            ET.SubElement(asset, "mesh", name=body_name + "_mesh", file=mesh_file)
+
+        wb = root.find("worldbody")
+        ET.SubElement(wb, "light", name="top", pos="0 0 3", dir="0 0 -1",
+                      diffuse="0.8 0.8 0.8", specular="0.3 0.3 0.3")
+        ET.SubElement(wb, "light", name="front", pos="2 0 2", dir="-1 0 -0.5",
+                      diffuse="0.4 0.4 0.4")
+        ET.SubElement(wb, "geom", name="floor", type="plane", size="10 10 0.01",
+                      material="grid_mat")
+
+        for body in root.iter("body"):
+            name = body.get("name")
+            if name not in _BODY_MESH_MAP:
+                continue
+            for geom in body.findall("geom"):
+                geom.set("group", "3")
+            geom_attrs = dict(type="mesh", mesh=name + "_mesh",
+                              contype="0", conaffinity="0")
+            if _BODY_MESH_MAP[name].lower().endswith(".obj"):
+                geom_attrs["euler"] = "1.5708 0 0"
+            ET.SubElement(body, "geom", **geom_attrs)
+
+        mjcf_str = ET.tostring(root, encoding="unicode")
+
+        assets = {}
+        for mesh_file in set(_BODY_MESH_MAP.values()):
+            fpath = os.path.join(_R1PRO_MESH_DIR, mesh_file)
+            try:
+                with open(fpath, "rb") as f:
+                    assets[mesh_file] = f.read()
+            except FileNotFoundError:
+                pass
+
+        model = mujoco.MjModel.from_xml_string(mjcf_str, assets)
+        print("  模型: mesh + 地面 + 光照")
+        return model
+    except Exception as e:
+        print("  mesh 加载失败 ({}), 使用简化模型".format(e))
+        return mujoco.MjModel.from_xml_string(R1PRO_MJCF)
+
+
 def replay_sim(ep_data, speed=1.0, auto=False):
-    """MuJoCo sim 回放。"""
+    """MuJoCo sim 回放。返回 'next'=正常结束, 'abort'=Ctrl+C。"""
     if not _MUJOCO_AVAILABLE:
         print("mujoco 未安装: pip install mujoco", file=sys.stderr)
-        return 1
+        return "abort"
+    if not os.environ.get("DISPLAY"):
+        print("无 DISPLAY 环境变量, 无法启动 MuJoCo viewer。", file=sys.stderr)
+        print("请在有显示器的机器上运行, 或使用 ssh -X 转发。", file=sys.stderr)
+        return "abort"
 
     joint_pos = ep_data["joint_pos"]
     timestamps = ep_data["timestamps"]
@@ -272,7 +355,7 @@ def replay_sim(ep_data, speed=1.0, auto=False):
     dt_frames = np.diff(timestamps)
     dt_frames = np.clip(dt_frames, 1e-4, 1.0)
 
-    model = mujoco.MjModel.from_xml_string(R1PRO_MJCF)
+    model = _build_visual_model()
     data = mujoco.MjData(model)
 
     space_pressed = [False]
@@ -286,15 +369,24 @@ def replay_sim(ep_data, speed=1.0, auto=False):
             key_callback=key_cb)
     except Exception as e:
         print("MuJoCo viewer 启动失败: {}".format(e))
-        return 1
+        return "abort"
 
+    # 显示质量信息
     grade = ep_data.get("grade", "")
     score = ep_data.get("score", 0)
+    rel_path = ep_data.get("rel_path", "")
+    info_parts = []
+    if rel_path:
+        info_parts.append(rel_path)
     if grade:
-        print("  质量: {} (score={:.2f})".format(grade, score))
+        info_parts.append("grade={}".format(grade))
+    if score:
+        info_parts.append("score={:.2f}".format(score))
+    info_parts.append("{} 帧 {:.1f}s".format(N, N / freq))
+    print("  [{}]".format(" | ".join(info_parts)))
 
     if not auto:
-        print("\n按空格或 Enter 开始 (speed={:.1f}x)...".format(speed))
+        print("  按空格或 Enter 开始 (speed={:.1f}x)...".format(speed))
 
     with viewer_ctx as viewer:
         if not auto:
@@ -306,7 +398,7 @@ def replay_sim(ep_data, speed=1.0, auto=False):
                     break
                 viewer.sync()
             if not viewer.is_running():
-                return 0
+                return "next"
 
         space_pressed[0] = False
         try:
@@ -336,16 +428,17 @@ def replay_sim(ep_data, speed=1.0, auto=False):
                         time.sleep(wait - elapsed)
 
                 if (i + 1) % (int(freq) * 5) == 0 or i == N - 1:
-                    print("  {}/{} ({:.1f}s)".format(i + 1, N, (i + 1) / freq))
+                    print("  回放: {}/{} ({:.1f}s)".format(i + 1, N, (i + 1) / freq))
 
-            print("回放完成。")
+            print("  回放完成。")
             if not auto:
-                print("关闭窗口退出。")
+                print("  关闭窗口退出。")
                 while viewer.is_running():
                     time.sleep(0.1)
         except KeyboardInterrupt:
-            print("\n中断。")
-    return 0
+            print("\n  Ctrl+C, 终止。")
+            return "abort"
+    return "next"
 
 
 def replay_real(ep_data, speed=1.0):
@@ -476,14 +569,18 @@ def main():
         ep_data = load_episode(ep_path, demo_index=args.demo)
         if ep_data is None:
             continue
+        ep_data["rel_path"] = ep_path
         jp = ep_data["joint_pos"]
         print("  {} 帧, {:.1f}Hz, {:.1f}s, 格式={}".format(
             len(jp), ep_data["freq"], len(jp) / ep_data["freq"], ep_data["format"]))
 
-        if args.sim:
-            replay_sim(ep_data, speed=args.speed, auto=args.auto)
-        elif args.real:
+        if args.real:
             replay_real(ep_data, speed=args.speed)
+        else:
+            result = replay_sim(ep_data, speed=args.speed, auto=args.auto)
+            if result == "abort":
+                print("已终止。")
+                break
 
     return 0
 
